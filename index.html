@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Itinerary: Banff & Jasper</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Alpine Earth -->
+    <!-- Application Structure Plan: A tab-based dashboard structure was chosen over a linear report format to enhance usability. Users can switch between distinct, task-oriented views: 'Overview' for pre-trip planning, 'Daily Itinerary' for the chronological schedule, 'Activities Explorer' for non-linear exploration by interest (e.g., see all hikes), 'Logistics & Costs' for practical data, and 'Contingency' for backup plans. This modular design allows users to quickly access the specific information they need without scrolling through irrelevant content, making trip planning more efficient and intuitive. -->
+    <!-- Visualization & Content Choices: 
+        - Report Info: Trip activity distribution -> Goal: Inform -> Viz: Donut Chart (Chart.js) -> Interaction: Hover for details -> Justification: Provides a quick, visual summary of how time is allocated, supporting the goal of a balanced trip.
+        - Report Info: Estimated costs of various activities -> Goal: Compare -> Viz: Bar Chart (Chart.js) -> Interaction: Hover for exact cost -> Justification: Allows for easy comparison of potential expenses, aiding in budget planning.
+        - Report Info: Daily schedule -> Goal: Organize -> Presentation: Accordion List (HTML/JS) -> Interaction: Click to expand/collapse -> Justification: Keeps the main view uncluttered while allowing deep dives into daily specifics.
+        - Report Info: All activities (hikes, dining, etc.) -> Goal: Explore/Filter -> Presentation: Card Grid (HTML/JS) -> Interaction: Filter buttons -> Justification: Empowers users to plan based on their interests, breaking free from the linear itinerary structure.
+        - Report Info: Logistical details (permits, shuttles) -> Goal: Inform -> Presentation: Tabbed Text Blocks (HTML/JS) -> Interaction: Click tabs -> Justification: Consolidates dense, practical information into easily digestible, thematic sections.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .nav-item { transition: all 0.2s ease-in-out; }
+        .nav-item.active {
+            background-color: #10B981; /* emerald-500 */
+            color: white;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        .accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.5s ease-in-out;
+        }
+        .accordion-item.open .accordion-content {
+            max-height: 2000px;
+        }
+        .accordion-item.open .accordion-arrow {
+            transform: rotate(180deg);
+        }
+        .chart-container {
+            position: relative;
+            margin: auto;
+            height: 320px;
+            max-height: 320px;
+            width: 100%;
+            max-width: 400px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 400px;
+                max-height: 400px;
+                max-width: 500px;
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+    <div class="min-h-screen">
+        <header class="bg-white shadow-sm sticky top-0 z-10">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+                <div class="flex flex-col sm:flex-row justify-between items-center">
+                    <div class="mb-4 sm:mb-0">
+                        <h1 class="text-2xl sm:text-3xl font-bold text-emerald-700">Banff & Jasper Trip Planner</h1>
+                        <p class="text-sm text-slate-500">August 18-22, 2025</p>
+                    </div>
+                    <nav id="main-nav" class="flex flex-wrap gap-2 justify-center">
+                        <button data-target="overview" class="nav-item active text-sm font-medium px-4 py-2 rounded-full bg-slate-100 hover:bg-emerald-400 hover:text-white">Overview</button>
+                        <button data-target="itinerary" class="nav-item text-sm font-medium px-4 py-2 rounded-full bg-slate-100 hover:bg-emerald-400 hover:text-white">Itinerary</button>
+                        <button data-target="activities" class="nav-item text-sm font-medium px-4 py-2 rounded-full bg-slate-100 hover:bg-emerald-400 hover:text-white">Activities</button>
+                        <button data-target="logistics" class="nav-item text-sm font-medium px-4 py-2 rounded-full bg-slate-100 hover:bg-emerald-400 hover:text-white">Logistics & Costs</button>
+                        <button data-target="contingency" class="nav-item text-sm font-medium px-4 py-2 rounded-full bg-slate-100 hover:bg-emerald-400 hover:text-white">Backups</button>
+                    </nav>
+                </div>
+            </div>
+        </header>
+
+        <main id="app-content" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            
+            <section id="overview" class="content-section">
+                <div class="bg-white p-6 rounded-lg shadow">
+                    <h2 class="text-2xl font-bold mb-4 text-emerald-800">Trip Overview & Pre-Travel Checklist</h2>
+                    <p class="text-slate-600 mb-6">
+                        This interactive planner helps you prepare for your adventure in the Canadian Rockies. The trip is designed to balance iconic sights with relaxation and crowd-avoidance strategies. Below is a visual breakdown of your planned activities and a critical checklist of tasks to complete before you go.
+                    </p>
+                    <div class="grid md:grid-cols-2 gap-8 items-center">
+                        <div>
+                            <h3 class="text-xl font-semibold mb-3 text-center">Pre-Travel Checklist</h3>
+                            <ul id="checklist" class="space-y-3">
+                                <li class="flex items-center"><input type="checkbox" class="h-5 w-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 mr-3"><span class="flex-1">Create Parks Canada Reservation Account for shuttles.</span></li>
+                                <li class="flex items-center"><input type="checkbox" class="h-5 w-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 mr-3"><span class="flex-1">Book Parks Canada Shuttles for Moraine Lake & Lake Louise (48hrs prior for best times).</span></li>
+                                <li class="flex items-center"><input type="checkbox" class="h-5 w-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 mr-3"><span class="flex-1">Purchase National Park Fishing Permit if fishing in Banff/Jasper.</span></li>
+                                <li class="flex items-center"><input type="checkbox" class="h-5 w-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 mr-3"><span class="flex-1">Consider booking a private guided fly-fishing tour in advance.</span></li>
+                                <li class="flex items-center"><input type="checkbox" class="h-5 w-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 mr-3"><span class="flex-1">Pack layers, rain gear, and bear spray.</span></li>
+                                <li class="flex items-center"><input type="checkbox" class="h-5 w-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 mr-3"><span class="flex-1">Note: No Park Entry Pass needed due to 'Canada Strong Pass' (Jun 20-Sep 2, 2025).</span></li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-semibold mb-3 text-center">Activity Balance</h3>
+                            <div class="chart-container">
+                                <canvas id="activityBalanceChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="itinerary" class="content-section hidden">
+                <div class="bg-white p-6 rounded-lg shadow">
+                    <h2 class="text-2xl font-bold mb-4 text-emerald-800">Daily Itinerary</h2>
+                    <p class="text-slate-600 mb-6">
+                        Here is the day-by-day plan for your trip. Each day is a blend of activity and leisure, designed to maximize your experience while minimizing time in crowds. Click on any day to expand and see the detailed schedule, including activity suggestions and dining recommendations.
+                    </p>
+                    <div id="accordion-container" class="space-y-4"></div>
+                </div>
+            </section>
+
+            <section id="activities" class="content-section hidden">
+                 <div class="bg-white p-6 rounded-lg shadow">
+                    <h2 class="text-2xl font-bold mb-4 text-emerald-800">Activities Explorer</h2>
+                     <p class="text-slate-600 mb-6">
+                        Want to see all your options at a glance? Use the filters below to explore all planned activities by category. This view allows you to compare all hiking trails, dining spots, or water activities mentioned in the itinerary, helping you make choices based on your mood or the weather.
+                    </p>
+                    <div id="activity-filters" class="flex flex-wrap gap-2 mb-6 justify-center">
+                        <button class="filter-btn active bg-emerald-500 text-white px-4 py-2 text-sm font-medium rounded-full" data-filter="all">All</button>
+                        <button class="filter-btn bg-slate-100 hover:bg-slate-200 px-4 py-2 text-sm font-medium rounded-full" data-filter="Hike">⛰️ Hiking</button>
+                        <button class="filter-btn bg-slate-100 hover:bg-slate-200 px-4 py-2 text-sm font-medium rounded-full" data-filter="Water">🛶 Water Activities</button>
+                        <button class="filter-btn bg-slate-100 hover:bg-slate-200 px-4 py-2 text-sm font-medium rounded-full" data-filter="Fishing">🎣 Fishing</button>
+                        <button class="filter-btn bg-slate-100 hover:bg-slate-200 px-4 py-2 text-sm font-medium rounded-full" data-filter="Bike">🚲 Biking</button>
+                        <button class="filter-btn bg-slate-100 hover:bg-slate-200 px-4 py-2 text-sm font-medium rounded-full" data-filter="Relax">♨️ Relaxation</button>
+                        <button class="filter-btn bg-slate-100 hover:bg-slate-200 px-4 py-2 text-sm font-medium rounded-full" data-filter="Dine">🍽️ Dining</button>
+                    </div>
+                    <div id="activity-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+                </div>
+            </section>
+
+            <section id="logistics" class="content-section hidden">
+                <div class="bg-white p-6 rounded-lg shadow">
+                    <h2 class="text-2xl font-bold mb-4 text-emerald-800">Logistics & Cost Analysis</h2>
+                    <p class="text-slate-600 mb-6">
+                        This section centralizes all the practical information you'll need, from park access rules to shuttle reservations and fishing regulations. The chart provides a quick comparison of estimated costs for major activities to help with your budget planning.
+                    </p>
+                     <div class="grid lg:grid-cols-5 gap-8">
+                        <div class="lg:col-span-3">
+                            <div id="logistics-tabs-buttons" class="flex border-b border-slate-200 mb-4">
+                                <button data-tab="shuttles" class="logistics-tab-btn flex-1 py-2 font-medium border-b-2 border-emerald-500 text-emerald-600">Lake Shuttles</button>
+                                <button data-tab="fishing" class="logistics-tab-btn flex-1 py-2 font-medium border-b-2 border-transparent text-slate-500 hover:text-emerald-600">Fishing Rules</button>
+                                <button data-tab="access" class="logistics-tab-btn flex-1 py-2 font-medium border-b-2 border-transparent text-slate-500 hover:text-emerald-600">Park Access</button>
+                            </div>
+                            <div id="logistics-tabs-content">
+                                <div id="tab-content-shuttles" class="logistics-tab-content space-y-2 text-sm">
+                                    <h4 class="font-bold">Moraine Lake & Lake Louise</h4>
+                                    <p>Access to Moraine Lake is by Parks Canada shuttle, Roam Transit, or private tour only (no personal vehicles). Reservations are mandatory.</p>
+                                    <p><strong>Parks Canada Shuttle:</strong> Book from Lake Louise Park & Ride. 40% of tickets release Apr 16, 2025; 60% release 48 hours prior at 8 AM MDT. Cost: $8/adult, $4/senior. Includes Lake Connector shuttle between the two lakes.</p>
+                                    <p><strong>Alpine Start Shuttle:</strong> For sunrise, departs 4 & 5 AM from Lake Louise Lakeshore. Requires shuttle reservation + parking purchase ($36.75/vehicle).</p>
+                                    <p><strong>Roam Transit:</strong> Reservable Super Pass ($30/adult) from Banff includes the Lake Connector.</p>
+                                </div>
+                                <div id="tab-content-fishing" class="logistics-tab-content hidden space-y-2 text-sm">
+                                    <h4 class="font-bold">Permits & Regulations</h4>
+                                    <p><strong>National Parks (Banff/Jasper):</strong> Requires a National Park Fishing Permit ($13.50/day or $46.25/year). Provincial licenses are not valid. Most waters are catch-and-release. Felt-soled boots are banned.</p>
+                                    <p><strong>Provincial Waters (outside parks):</strong> Requires an Alberta Sportfishing License + WIN card. Costs vary for residents/non-residents.</p>
+                                    <p><strong>Kootenay NP:</strong> All waterbodies are CLOSED to fishing and watercraft until Mar 31, 2026.</p>
+                                     <p><strong>AIS Prevention:</strong> You must Clean, Drain, and Dry all watercraft and gear before entering any water body.</p>
+                                </div>
+                                <div id="tab-content-access" class="logistics-tab-content hidden space-y-2 text-sm">
+                                    <h4 class="font-bold">Park Entry Fees</h4>
+                                    <p><strong>Free Admission:</strong> For your travel dates (Aug 18-22, 2025), entry to all national parks (including Banff and Jasper) is FREE under the "Canada Strong Pass" initiative.</p>
+                                    <p>This fee waiver saves a family/group up to $22.00 per day. It does not cover camping, shuttles, hot springs, or other activity fees.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="lg:col-span-2">
+                            <h3 class="text-xl font-semibold mb-3 text-center">Activity Cost Comparison</h3>
+                             <div class="chart-container">
+                                <canvas id="costComparisonChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <section id="contingency" class="content-section hidden">
+                <div class="bg-white p-6 rounded-lg shadow">
+                    <h2 class="text-2xl font-bold mb-4 text-emerald-800">Contingency & Backup Plans</h2>
+                    <p class="text-slate-600 mb-6">
+                        Weather in the Rockies can be unpredictable. If you're faced with a rainy day or need a change of pace, this section provides a list of excellent indoor and weatherproof alternatives. Key logistical notes are also included to prevent any planning mishaps.
+                    </p>
+                    <div class="grid md:grid-cols-2 gap-8">
+                        <div>
+                             <h3 class="text-xl font-semibold mb-3">Weatherproof & Indoor Options</h3>
+                             <ul class="list-disc list-inside space-y-2 text-slate-700">
+                                <li>Visit the Whyte Museum of the Canadian Rockies.</li>
+                                <li>Explore the Banff Park Museum National Historic Site.</li>
+                                <li>Learn at the Buffalo Nations Luxton Museum.</li>
+                                <li>Shop along Banff Avenue and Bear Street.</li>
+                                <li>Go for a Park Distillery Tour & Tasting.</li>
+                                <li>Enjoy a film at the local cinema or go bowling.</li>
+                                <li>Take a guided Banff Food Tour.</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-semibold mb-3">Important Planning Notes</h3>
+                            <ul class="list-disc list-inside space-y-2 text-slate-700">
+                                <li><strong>No Kootenay Fishing:</strong> All waterbodies in Kootenay NP are closed to angling. A day trip would be for scenic drives and hikes only.</li>
+                                <li><strong>Amethyst Lake Inaccessible:</strong> This Jasper lake requires a multi-day backpacking trip and is not suitable for a day visit.</li>
+                                <li><strong>No Folk Festival:</strong> The Canmore Folk Festival is on Aug 2-4, 2025, and does not overlap with your travel dates.</li>
+                                <li><strong>Cultural Option:</strong> The "Art in Nature Trail" along the Bow River in Banff is a great, relaxed cultural activity available during your stay.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+
+    const itineraryData = [
+        {
+            day: "Day 1: Mon, Aug 18",
+            title: "Banff Arrival & Relaxation",
+            summary: "Ease into your mountain getaway with a relaxing soak, a classic local hike, and an optional bike ride.",
+            details: [
+                "<strong>Morning:</strong> Relaxed start, then visit Banff Upper Hot Springs.",
+                "<strong>Afternoon:</strong> Short, moderate hike up Tunnel Mountain for panoramic views.",
+                "<strong>Late Afternoon:</strong> Optional mountain bike rental or explore downtown Banff's shops and museums.",
+                "<strong>Evening:</strong> Dinner at Farm & Fire for a wood-fired meal."
+            ]
+        },
+        {
+            day: "Day 2: Tue, Aug 19",
+            title: "Iconic Lake Adventures",
+            summary: "An early start to experience the world-famous turquoise waters of Moraine Lake and Lake Louise.",
+            details: [
+                "<strong>Early Morning:</strong> Take pre-booked 'Alpine Start' or early shuttle to Moraine Lake to beat the crowds.",
+                "<strong>Morning:</strong> Canoe on Moraine Lake and hike the short Rockpile or Lakeshore trails.",
+                "<strong>Mid-day:</strong> Use the Lake Connector shuttle to travel to Lake Louise.",
+                "<strong>Afternoon:</strong> Canoe on Lake Louise and explore the scenic lakeshore.",
+                "<strong>Evening:</strong> Dinner at Banff Ave Brewing Co. for a casual pub atmosphere."
+            ]
+        },
+        {
+            day: "Day 3: Wed, Aug 20",
+            title: "Bow River Fly Fishing",
+            summary: "A day dedicated to fishing on the world-renowned Bow River, with options for guided or self-guided experiences.",
+            details: [
+                "<strong>Morning:</strong> Half or full-day fly fishing trip on the Bow River. A private guided tour is recommended for the best experience.",
+                "<strong>Afternoon:</strong> Relax after fishing or try your luck at Lake Minnewanka, where you can keep Lake Trout.",
+                "<strong>Evening:</strong> Drive to Canmore for a unique dinner at Gaucho Brazilian Barbecue."
+            ]
+        },
+        {
+            day: "Day 4: Thu, Aug 21",
+            title: "Jasper & Icefields Parkway",
+            summary: "A spectacular scenic drive and exploration of Jasper National Park's highlights.",
+            details: [
+                "<strong>All Day:</strong> Drive the Icefields Parkway, one of the world's most scenic routes. Stop at Peyto Lake, Bow Lake, and the Columbia Icefield.",
+                "<strong>Afternoon:</strong> Choose a moderate hike in Jasper, such as the Valley of the Five Lakes (easier) or Parker Ridge (glacier views).",
+                "<strong>Late Afternoon:</strong> Begin the return drive to Banff, allowing plenty of time for stops.",
+                "<strong>Evening:</strong> Relaxed dinner back in Banff after a long day of exploring."
+            ]
+        },
+        {
+            day: "Day 5: Fri, Aug 22",
+            title: "Flexible Finale & Departure",
+            summary: "A flexible last day to revisit a favorite spot, explore something new, or use backup plans if the weather is poor.",
+            details: [
+                "<strong>Option A (Good Weather):</strong> Hike Johnston Canyon (go early!), explore the Art in Nature Trail, or try the Sundance Canyon trail.",
+                "<strong>Option B (Poor Weather):</strong> Visit Banff's museums (Whyte, Banff Park Museum), shop, or take a distillery tour.",
+                "<strong>Note:</strong> A Kootenays trip is possible for scenery but remember all waterbodies are closed to fishing.",
+                "<strong>Evening:</strong> Farewell dinner at a restaurant of your choice."
+            ]
+        }
+    ];
+
+    const activityData = [
+        { name: "Banff Upper Hot Springs", day: 1, category: "Relax", details: "Soak in mineral-rich hot springs with mountain views. ~$17.50/adult." },
+        { name: "Tunnel Mountain Hike", day: 1, category: "Hike", details: "4.2km round trip. 1-2 hours. Moderate hike with great views of Banff." },
+        { name: "Mountain Biking", day: 1, category: "Bike", details: "Rent bikes and ride local trails like Fenland or Tunnel Mtn Loop." },
+        { name: "Farm & Fire", day: 1, category: "Dine", details: "Family-friendly wood-fired kitchen with locally sourced ingredients." },
+        { name: "Canoeing on Moraine Lake", day: 2, category: "Water", details: "Iconic experience. First-come, first-served. ~$160/hr." },
+        { name: "Consolation Lakes Hike", day: 2, category: "Hike", details: "Easy 2-hour hike from Moraine Lake for quieter views." },
+        { name: "Canoeing on Lake Louise", day: 2, category: "Water", details: "Paddle on the famous turquoise lake. ~$170/hr for visitors." },
+        { name: "Banff Ave Brewing Co.", day: 2, category: "Dine", details: "Casual gastro pub with craft beer and varied menu." },
+        { name: "Bow River Fly Fishing", day: 3, category: "Fishing", details: "World-class fishing for trout. Guided trips recommended." },
+        { name: "Lake Minnewanka Fishing", day: 3, category: "Fishing", details: "Only lake in Banff where you can keep fish (Lake Trout, limit 2)." },
+        { name: "Gaucho Brazilian Barbecue", day: 3, category: "Dine", details: "Unique all-you-can-eat meat experience in Canmore." },
+        { name: "Icefields Parkway Drive", day: 4, category: "Relax", details: "Scenic drive with numerous viewpoints like Peyto Lake." },
+        { name: "Valley of the Five Lakes", day: 4, category: "Hike", details: "4.5km loop in Jasper. Easy, family-friendly with beautiful lakes." },
+        { name: "Parker Ridge Hike", day: 4, category: "Hike", details: "5.4km return in Jasper. Offers stunning views of the Saskatchewan Glacier." },
+        { name: "Johnston Canyon Hike", day: 5, category: "Hike", details: "Popular walk on catwalks through a canyon. Go early or late." },
+        { name: "Art in Nature Trail", day: 5, category: "Relax", details: "Relaxed outdoor art exhibition along the Bow River in Banff." },
+    ];
+
+    const mainNav = document.getElementById('main-nav');
+    const contentSections = document.querySelectorAll('.content-section');
+
+    mainNav.addEventListener('click', (e) => {
+        const targetButton = e.target.closest('button');
+        if (!targetButton) return;
+        
+        const targetId = targetButton.dataset.target;
+        if (!targetId) return;
+
+        mainNav.querySelector('.active').classList.remove('active');
+        targetButton.classList.add('active');
+
+        contentSections.forEach(section => {
+            if (section.id === targetId) {
+                section.classList.remove('hidden');
+            } else {
+                section.classList.add('hidden');
+            }
+        });
+    });
+
+    const accordionContainer = document.getElementById('accordion-container');
+    itineraryData.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'accordion-item bg-slate-50 border border-slate-200 rounded-lg';
+        div.innerHTML = `
+            <button class="accordion-header w-full flex justify-between items-center text-left p-4">
+                <span class="flex-1">
+                    <span class="font-semibold text-emerald-700">${item.day}:</span>
+                    <span class="ml-2 font-medium">${item.title}</span>
+                </span>
+                <svg class="accordion-arrow w-6 h-6 transform transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </button>
+            <div class="accordion-content">
+                <div class="p-4 pt-0 text-slate-600">
+                    <p class="mb-3 italic">${item.summary}</p>
+                    <ul class="list-disc list-inside space-y-1 text-sm">${item.details.map(d => `<li>${d}</li>`).join('')}</ul>
+                </div>
+            </div>
+        `;
+        accordionContainer.appendChild(div);
+    });
+
+    accordionContainer.addEventListener('click', e => {
+        const header = e.target.closest('.accordion-header');
+        if (header) {
+            const item = header.parentElement;
+            item.classList.toggle('open');
+        }
+    });
+
+    const activityGrid = document.getElementById('activity-grid');
+    const activityFilters = document.getElementById('activity-filters');
+    
+    function renderActivities(filter = 'all') {
+        activityGrid.innerHTML = '';
+        const filteredActivities = filter === 'all' 
+            ? activityData 
+            : activityData.filter(act => act.category === filter);
+
+        filteredActivities.forEach(act => {
+            const card = document.createElement('div');
+            card.className = 'activity-card bg-slate-50 p-4 rounded-lg border border-slate-200';
+            card.dataset.category = act.category;
+            card.innerHTML = `
+                <h4 class="font-semibold text-emerald-800">${act.name}</h4>
+                <p class="text-sm text-slate-600">${act.details}</p>
+                <p class="text-xs text-slate-400 mt-2">Day ${act.day} / ${act.category}</p>
+            `;
+            activityGrid.appendChild(card);
+        });
+    }
+
+    activityFilters.addEventListener('click', e => {
+        const targetButton = e.target.closest('button');
+        if(targetButton && !targetButton.classList.contains('active')) {
+            activityFilters.querySelector('.active').classList.remove('active', 'bg-emerald-500', 'text-white');
+            activityFilters.querySelector('.active').classList.add('bg-slate-100', 'hover:bg-slate-200');
+            targetButton.classList.add('active', 'bg-emerald-500', 'text-white');
+            targetButton.classList.remove('bg-slate-100', 'hover:bg-slate-200');
+            renderActivities(targetButton.dataset.filter);
+        }
+    });
+
+    const logisticsTabsButtons = document.getElementById('logistics-tabs-buttons');
+    const logisticsTabsContent = document.querySelectorAll('.logistics-tab-content');
+    
+    logisticsTabsButtons.addEventListener('click', e => {
+        const targetButton = e.target.closest('button');
+        if (!targetButton) return;
+        
+        logisticsTabsButtons.querySelector('.border-emerald-500').classList.replace('border-emerald-500', 'border-transparent');
+        logisticsTabsButtons.querySelector('.text-emerald-600').classList.replace('text-emerald-600', 'text-slate-500');
+        
+        targetButton.classList.remove('border-transparent');
+        targetButton.classList.add('border-emerald-500');
+        targetButton.classList.remove('text-slate-500');
+        targetButton.classList.add('text-emerald-600');
+        
+        logisticsTabsContent.forEach(content => {
+            if(content.id === `tab-content-${targetButton.dataset.tab}`) {
+                content.classList.remove('hidden');
+            } else {
+                content.classList.add('hidden');
+            }
+        });
+    });
+
+    function createActivityChart() {
+        const ctx = document.getElementById('activityBalanceChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Hiking', 'Water Activities', 'Fishing', 'Scenic Driving/Relax', 'Biking'],
+                datasets: [{
+                    label: 'Activity Balance',
+                    data: [3, 2, 2, 2, 1],
+                    backgroundColor: ['#10B981', '#06B6D4', '#3B82F6', '#F59E0B', '#84CC16'],
+                    borderColor: '#f8fafc',
+                    borderWidth: 3
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return `${context.label}: ${context.raw} planned instances`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function createCostChart() {
+        const ctx = document.getElementById('costComparisonChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['Canoe Rental (1hr)', 'Hot Springs (1 adult)', 'Guided Fishing (half day, per person est.)', 'Bike Rental (full day)'],
+                datasets: [{
+                    label: 'Estimated Cost (CAD)',
+                    data: [165, 17.50, 400, 81],
+                    backgroundColor: ['#06B6D4', '#F59E0B', '#3B82F6', '#84CC16'],
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return `$${context.raw.toFixed(2)} CAD`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        title: { display: true, text: 'Cost (CAD)' }
+                    }
+                }
+            }
+        });
+    }
+
+    renderActivities();
+    createActivityChart();
+    createCostChart();
+});
+</script>
+
+</body>
+</html>
